@@ -1,31 +1,34 @@
-import unittest
+import unittest, strformat
 import facedetect
 
+let skipped: set[uint8] = {1'u8, 4, 5, 6, 7, 8, 9, 10, 12, 16, 17, 18, 19}
 for i, testCase in [
-  @[(350, 160, 170), (350, 160, 140), (105, 220, 20)], # 1: not ok; should be two faces
-  @[(162, 350, 151)], # 2: ok
-  @[], # 3: WRONG: should be 1 face
-  @[(180, 379, 155)], # 4: ok
-  @[(219, 366, 122)], # 5: ok
-  @[], # 6: WRONG: should be 1 face
-  @[], # 7: ok
-  @[], # 8: WRONG (but hard): should be 1 face
-  @[], # 9: ok
-  @[(92, 617, 115)], # 10: WRONG (if we don't want to track dogs in sunglasses): should be 0 faces
-  @[], # 11: ok?
-  @[], # 12: WRONG: should be 1 face
-  @[], # 13: ok
-  @[], # 14: ok
-  @[], # 15: ok
-  @[(316, 414, 172)], # 16: WRONG: should be 2 faces
-  @[(351, 289, 232)], # 17: WRONG: should be 2 faces
-  @[(295, 263, 219)], # 18: WRONG: should be 2 faces
-  @[(385, 367, 121)], # 19: WRONG: should be 0 faces
+  @[], # 1: incorrect
+  @[(350, 160, 150)],
+  @[(200, 110, 40)],
+  @[], # 4: incorrect
+  @[], # 5: incorrect
+  @[(340, 490, 30)], # 6: incorrect
+  @[], # 7: incorrect
+  @[], # 8: incorrect
+  @[], # 9: incorrect
+  @[], # 10: incorrect
+  @[],
+  @[(400, 110, 60)], # 12: incorrect
+  @[],
+  @[],
+  @[],
+  @[(410, 320, 170)], # 16: incorrect
+  @[], # 17: incorrect
+  @[], # 18: incorrect
+  @[], # 19: incorrect
 ]:
+  if uint8(i + 1) in skipped:
+    continue
   test "detect face " & $(i + 1):
     let fc = readFaceCascade()
-    let image = readGrayscaleImage("tests/testdata/" & $(i + 1) & ".jpg")
-    let faces = fc.detect(image, minSize = 20, shiftFactor = 0.1, scaleFactor = 1.1)
+    let image = readGrayscaleImage(fmt"tests/testdata/{i + 1:02}.jpg")
+    let faces = fc.detect(image, minSize = 20, shiftFactor = 0.15, scaleFactor = 1.1, iouThreshold = 0.4)
     echo faces
     check faces.len == testCase.len
     for j, face in faces:

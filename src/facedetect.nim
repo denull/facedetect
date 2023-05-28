@@ -270,7 +270,7 @@ proc cluster*(faces: seq[Face], iouThreshold: float64): seq[Face] =
     if n > 0:
       result.add(Face(x: x / n, y: y / n, scale: s / n, score: q))
 
-proc detect*(fc: FaceCascade, image: Image8, minSize: int = 100, maxSize: int = 600, shiftFactor: float64 = 0.15, scaleFactor: float64 = 1.1, angle = 0.0, iouThreshold = 0.0): seq[Face] =
+proc detect*(fc: FaceCascade, image: Image8, minSize: int = 100, maxSize: int = 600, shiftFactor: float64 = 0.15, scaleFactor: float64 = 1.1, angle = 0.0, iouThreshold = 0.1): seq[Face] =
   ## Analyze the grayscale converted image pixel data and run the classification function over the detection window.
   ## It will return a slice containing the detection row, column, it's center and the detection score (in case this is greater than 0.0).
   var data = image.data

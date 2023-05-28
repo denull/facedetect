@@ -19,13 +19,12 @@ when true:
     for i in 0 ..< reps:
       sum += benchFun()
     r.push float((getMonoTime() - start).inMilliseconds) / float(reps)
-    echo int(float(sum) / float(reps))
+    echo "Run ", iterations, "/10, ", int(float(sum) / float(reps)), " faces detected"
   echo r
 
 # BenchmarkGoCV-12              10         106933090 ns/op (106ms)
 # BenchmarkPIGO-12              14          81145464 ns/op (81ms)
 #
-# facedetect (no flags; debug build):               195ms
-# facedetect (-d:release):                          55ms
-# facedetect (-d:danger):                           55ms
-# facedetect (-d:danger --passC:"-O3 -flto -m64"):  54ms
+# nim c -r cmd/benchmark (DEBUG build):                       180ms
+# nim c -d:release -r cmd/benchmark (RELEASE build):          52ms
+# nim c -d:danger --passC:"-O3 -flto -m64" -r cmd/benchmark:  50ms
