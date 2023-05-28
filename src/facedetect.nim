@@ -71,7 +71,9 @@ const qSinTable = [0, 49, 97, 142, 181, 212, 236, 251, 256, 251, 236, 212, 181, 
 const eyeCascades* = ["lp46", "lp44", "lp42", "lp38", "lp312"]
 const mouthCascades* = ["lp93", "lp84", "lp82", "lp81"]
 
-proc comp(c: uint8): float64 {.inline.} = float64((int(c) shl 8) or int(c)) # weird conversion; but that's how color works in Go implementation
+# weird conversion from 8 to 16 bit color component; but that's how color works in Go implementation
+proc comp(c: uint8): float64 {.inline.} = float64((int(c) shl 8) or int(c))
+
 # Luminosity func from chroma
 proc lum(pixel: ColorRGBX): float64 {.inline.} =
   (0.299 * comp(pixel.r) + 0.587 * comp(pixel.g) + 0.114 * comp(pixel.b)) / 256.0
@@ -348,8 +350,8 @@ proc detect*(lc: LandmarkCascade, leftEye, rightEye: Landmark, image: Image8, pe
 # Some code based on photoprism
 # Using values from https://github.com/photoprism/photoprism/blob/develop/internal/face/thresholds.go
 
-const overlapThreshold = 42                      # Face area overlap threshold in percent.
-const overlapThresholdFloor = overlapThreshold - 1 # Reduced overlap area to avoid rounding inconsistencies.
+const overlapThreshold = 0.42                      # Face area overlap threshold in percent.
+const overlapThresholdFloor = overlapThreshold - 0.01 # Reduced overlap area to avoid rounding inconsistencies.
 const scoreThreshold = 9.0                       # Min face score.
 
 #[
@@ -400,7 +402,7 @@ proc overlap*(face1, face2: Face): float64 =
     return s / area
   return area / s
 
-proc contains(people: seq[Person], p: Person, threshold: int = overlapThresholdFloor): bool =
+proc contains(people: seq[Person], p: Person, threshold: float32): bool =
   for person in people:
     if person.face.overlap(p.face) * 100.0 > float(threshold):
       return true
@@ -414,17 +416,16 @@ proc detect*(fd: FaceDetector, image: Image8,
   scaleFactor: float32 = 1.1,
   perturbs: int = 63,
   angle: float32 = 0.0,
-  overlapThreshold: int = overlapThresholdFloor,
+  overlapThreshold: float32 = overlapThresholdFloor,
   qualityThreshold: proc(scale: float32): float32 = qualityThresholdFunc,
 ): seq[Person] =
   let minSize = max(minSize, 20)
   if image.width < minSize or image.height < minSize:
     raise newException(ValueError, fmt"Image size {image.width}x{image.height} is too small.")
   let maxSize = min(maxSize, min(image.width, image.height) - 4)
-  let iouThreshold = float64(overlapThreshold) / 100
 
   # Detect
-  var faces = fd.faceCascade.detect(image, minSize, maxSize, shiftFactor, scaleFactor, angle, iouThreshold)
+  var faces = fd.faceCascade.detect(image, minSize, maxSize, shiftFactor, scaleFactor, angle, overlapThreshold)
 
   # Faces
   # Sort results by size

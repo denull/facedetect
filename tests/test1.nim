@@ -2,7 +2,7 @@ import unittest
 import facedetect
 
 for i, testCase in [
-  @[(350, 160, 170), (350, 160, 140), (105, 220, 20)], # 1: ok
+  @[(350, 160, 170), (350, 160, 140), (105, 220, 20)], # 1: not ok; should be two faces
   @[(162, 350, 151)], # 2: ok
   @[], # 3: WRONG: should be 1 face
   @[(180, 379, 155)], # 4: ok
