@@ -25,6 +25,8 @@ Also there're two APIs: low-level procs, which allow to separately detect faces,
 Example:
 
 ```nim
+import facedetect
+
 let fd = initFaceDetector() # This will load all cascade files from `cascade` directory
 let image = readGrayscaleImage("sample.jpg") # Load image (using pixie) and convert it to grayscale
 let people = fd.detect(image, minSize = 20, shiftFactor = 0.1, scaleFactor = 1.1)
