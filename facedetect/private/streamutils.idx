@@ -1,0 +1,18 @@
+readUint16le	facedetect/private/streamutils.html#readUint16le,Stream	streamutils: readUint16le(stream: Stream): uint16	
+readUint16be	facedetect/private/streamutils.html#readUint16be,Stream	streamutils: readUint16be(stream: Stream): uint16	
+readUint32le	facedetect/private/streamutils.html#readUint32le,Stream	streamutils: readUint32le(stream: Stream): uint32	
+readUint32be	facedetect/private/streamutils.html#readUint32be,Stream	streamutils: readUint32be(stream: Stream): uint32	
+readUint64le	facedetect/private/streamutils.html#readUint64le,Stream	streamutils: readUint64le(stream: Stream): uint64	
+readUint64be	facedetect/private/streamutils.html#readUint64be,Stream	streamutils: readUint64be(stream: Stream): uint64	
+readInt32le	facedetect/private/streamutils.html#readInt32le,Stream	streamutils: readInt32le(stream: Stream): int32	
+readInt32be	facedetect/private/streamutils.html#readInt32be,Stream	streamutils: readInt32be(stream: Stream): int32	
+readFloat32le	facedetect/private/streamutils.html#readFloat32le,Stream	streamutils: readFloat32le(stream: Stream): float32	
+readFloat32be	facedetect/private/streamutils.html#readFloat32be,Stream	streamutils: readFloat32be(stream: Stream): float32	
+readFloat64le	facedetect/private/streamutils.html#readFloat64le,Stream	streamutils: readFloat64le(stream: Stream): float64	
+readFloat64be	facedetect/private/streamutils.html#readFloat64be,Stream	streamutils: readFloat64be(stream: Stream): float64	
+readUint16	facedetect/private/streamutils.html#readUint16,Stream,bool	streamutils: readUint16(stream: Stream; bigEndian: bool): uint16	
+readUint32	facedetect/private/streamutils.html#readUint32,Stream,bool	streamutils: readUint32(stream: Stream; bigEndian: bool): uint32	
+readUint64	facedetect/private/streamutils.html#readUint64,Stream,bool	streamutils: readUint64(stream: Stream; bigEndian: bool): uint64	
+readInt32	facedetect/private/streamutils.html#readInt32,Stream,bool	streamutils: readInt32(stream: Stream; bigEndian: bool): int32	
+readFloat32	facedetect/private/streamutils.html#readFloat32,Stream,bool	streamutils: readFloat32(stream: Stream; bigEndian: bool): float32	
+readFloat64	facedetect/private/streamutils.html#readFloat64,Stream,bool	streamutils: readFloat64(stream: Stream; bigEndian: bool): float64	

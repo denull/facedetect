@@ -1,0 +1,23 @@
+Image8	facedetect.html#Image8	facedetect: Image8	
+FaceCascade	facedetect.html#FaceCascade	facedetect: FaceCascade	
+LandmarkCascade	facedetect.html#LandmarkCascade	facedetect: LandmarkCascade	
+Face	facedetect.html#Face	facedetect: Face	
+Landmark	facedetect.html#Landmark	facedetect: Landmark	
+FaceDetector	facedetect.html#FaceDetector	facedetect: FaceDetector	
+Person	facedetect.html#Person	facedetect: Person	
+eyeCascades	facedetect.html#eyeCascades	facedetect: eyeCascades	
+mouthCascades	facedetect.html#mouthCascades	facedetect: mouthCascades	
+grayscale	facedetect.html#grayscale	facedetect: grayscale(image: pixie.Image): Image8	
+readGrayscaleImage	facedetect.html#readGrayscaleImage,string	facedetect: readGrayscaleImage(filePath: string): Image8	
+readFaceCascade	facedetect.html#readFaceCascade,FileStream	facedetect: readFaceCascade(fs: FileStream): FaceCascade	
+readFaceCascade	facedetect.html#readFaceCascade,string	facedetect: readFaceCascade(filename: string = &quot;cascade/facefinder&quot;): FaceCascade	
+readLandmarkCascade	facedetect.html#readLandmarkCascade,FileStream	facedetect: readLandmarkCascade(fs: FileStream): LandmarkCascade	
+readLandmarkCascade	facedetect.html#readLandmarkCascade,string	facedetect: readLandmarkCascade(filename: string = &quot;cascade/puploc&quot;): LandmarkCascade	
+readLandmarkCascadeDir	facedetect.html#readLandmarkCascadeDir,string	facedetect: readLandmarkCascadeDir(dir: string = &quot;cascade/lps&quot;): Table[string,\n    LandmarkCascade]	
+cluster	facedetect.html#cluster,seq[Face],float64	facedetect: cluster(faces: seq[Face]; iouThreshold: float64): seq[Face]	
+detect	facedetect.html#detect,FaceCascade,Image8,int,int,float64,float64,float,float	facedetect: detect(fc: FaceCascade; image: Image8; minSize: int = 100; maxSize: int = 600;\n       shiftFactor: float64 = 0.15; scaleFactor: float64 = 1.1; angle = 0.0;\n       iouThreshold = 0.0): seq[Face]	
+detect	facedetect.html#detect,LandmarkCascade,Image8,float32,float32,float32,int,float64,bool	facedetect: detect(lc: LandmarkCascade; image: Image8; x, y, scale: float32; perturbs: int;\n       angle: float64 = 0.0; flipV: bool = false): Landmark	
+detect	facedetect.html#detect,LandmarkCascade,Landmark,Landmark,Image8,int,bool	facedetect: detect(lc: LandmarkCascade; leftEye, rightEye: Landmark; image: Image8;\n       perturbs: int; flipV: bool): Landmark	
+qualityThresholdFunc	facedetect.html#qualityThresholdFunc,float32	facedetect: qualityThresholdFunc(scale: float32): float32	
+initFaceDetector	facedetect.html#initFaceDetector	facedetect: initFaceDetector(): FaceDetector	
+detect	facedetect.html#detect,FaceDetector,Image8,bool,int,int,float32,float32,float32,int,float32,float32,proc(float32)	facedetect: detect(fd: FaceDetector; image: Image8; findLandmarks: bool = true;\n       minSize: int = 20; maxSize: int = 1000; minLandmarksScale: float32 = 50;\n       shiftFactor: float32 = 0.1; scaleFactor: float32 = 1.1;\n       perturbs: int = 63; angle: float32 = 0.0;\n       overlapThreshold: float32 = overlapThresholdFloor;\n       qualityThreshold: proc (scale: float32): float32 = qualityThresholdFunc): seq[\n    Person]	
