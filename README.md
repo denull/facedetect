@@ -6,17 +6,17 @@ Port of [Pigo](https://github.com/esimov/pigo). Also uses some tweaks and thresh
 
 API Reference: https://denull.github.io/facedetect/
 
-# Installation
+## Installation
 
 ```
 nimble install facedetect
 ```
 
-# Cascade files
+## Cascade files
 
 This library uses the same cascade file format used by Pigo. Those files available at `cascade` directory, copy it to your app folder so they can be loaded at runtime. Including them statically will be supported later.
 
-# Usage
+## Usage
 
 Although this is a direct port of [Pigo](https://github.com/esimov/pigo), some APIs are a bit different. For example, instead of `Pigo` and `PuplocCascade` structs, this library uses `FaceCascade` and `LandmarkCascade`.
 
@@ -36,7 +36,7 @@ for i, person in people:
 
 There's also a demo app in `cmd/demo.nim` (but it uses wNim library, so it's Windows-only). For an example of cross-platform usage of lower-level (only face detection), see `cmd/test.nim`.
 
-# Benchmark
+## Benchmark
 
 For benchmarking I replicated code from https://github.com/esimov/pigo-gocv-benchmark. It's available in `demo/benchmark.nim` Depending on compilation flags, it gives following results on my machine:
 
