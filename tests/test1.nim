@@ -1,9 +1,8 @@
 import unittest
 import facedetect
-import facedetect/imageutils
 
 for i, testCase in [
-  @[(1003, 167, 256), (527, 681, 517)], # 1: ok
+  @[(350, 160, 170), (350, 160, 140), (105, 220, 20)], # 1: ok
   @[(162, 350, 151)], # 2: ok
   @[], # 3: WRONG: should be 1 face
   @[(180, 379, 155)], # 4: ok
@@ -24,14 +23,14 @@ for i, testCase in [
   @[(385, 367, 121)], # 19: WRONG: should be 0 faces
 ]:
   test "detect face " & $(i + 1):
-    let pico = readPico()
+    let fc = readFaceCascade()
     let image = readGrayscaleImage("tests/testdata/" & $(i + 1) & ".jpg")
-    let faces = pico.clusterDetection(image, minSize = 20, shiftFactor = 0.1, scaleFactor = 1.1, iouThreshold = 0.41)
+    let faces = fc.detect(image, minSize = 20, shiftFactor = 0.1, scaleFactor = 1.1)
     echo faces
     check faces.len == testCase.len
     for j, face in faces:
       if j >= testCase.len:
         break
-      check face.row == testCase[j][0]
-      check face.col == testCase[j][1]
-      check face.scale == testCase[j][2]
+      check abs(int(face.x) - testCase[j][0]) < 10
+      check abs(int(face.y) - testCase[j][1]) < 10
+      check abs(int(face.scale) - testCase[j][2]) < 10

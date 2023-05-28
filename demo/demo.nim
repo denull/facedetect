@@ -42,6 +42,7 @@ let imagePanel = Panel(panel)
 var info = ImageInfo()
 var currentBitmap: wBitmap
 var currentPeople: seq[Person] = @[]
+var currentFaces: seq[Face] = @[]
 
 #let fc = readFaceCascade()
 let detector = initFaceDetector()
@@ -63,6 +64,10 @@ imagePanel.wEvent_Paint do (event: wEvent):
   dc.scale = (k, k)
 
   dc.drawBitmap(currentBitmap, 0, 0)
+  for face in currentFaces:
+    dc.pen = Pen(color=0xFF3030, width=3)
+    dc.drawRoundedRectangle(int(face.x - (face.scale / 2)), int(face.y - (face.scale / 2)), int(face.scale), int(face.scale), 5)
+
   for person in currentPeople:
     let face = person.face
     dc.pen = Pen(color=0xFF3030, width=3)
@@ -87,9 +92,11 @@ proc loadImage(fname: string) =
   st = epochTime()
   #currentFaces = fc.detect(grayImage)
   #currentFaces = fc.detect(grayImage, minSize = 20, shiftFactor = 0.1, scaleFactor = 1.1, iouThreshold = 0.41)
+  #currentFaces = detector.faceCascade.detect(grayImage, minSize = 20, maxSize = 1000, shiftFactor = 0.2, scaleFactor = 1.1, iouThreshold = 0.1)
+  #echo currentFaces
   currentPeople = detector.detect(grayImage)
   echo fmt"Faces detected in {epochTime() - st}s"
-  echo currentPeople
+  #echo currentPeople
 
   let parts = split(fname, '\\')
   info = ImageInfo(
@@ -104,7 +111,7 @@ proc layout() =
     spacing: 15
     H:|-[label,list(500)]-[imagePanel,infobox]-|
     V:|-[label][list]-|
-    V:|-[imagePanel(1000)]-[infobox]-|
+    V:|-[imagePanel(1200)]-[infobox]-|
   """
 
   infobox.autolayout """

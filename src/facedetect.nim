@@ -55,9 +55,9 @@ type
 
   FaceDetector* = object
     ## FaceDetector is a high-level API for detecting faces, eyes and optionally other landmarks
-    faceCascade: FaceCascade # Face cascade
-    eyesCascade: LandmarkCascade # Eye cascade
-    landmarkCascades: Table[string, LandmarkCascade] # Landmark cascades
+    faceCascade*: FaceCascade # Face cascade
+    eyesCascade*: LandmarkCascade # Eye cascade
+    landmarkCascades*: Table[string, LandmarkCascade] # Landmark cascades
 
   Person* = object
     ## Person contains information about face, eyes and other landmarks positions
@@ -71,14 +71,15 @@ const qSinTable = [0, 49, 97, 142, 181, 212, 236, 251, 256, 251, 236, 212, 181, 
 const eyeCascades* = ["lp46", "lp44", "lp42", "lp38", "lp312"]
 const mouthCascades* = ["lp93", "lp84", "lp82", "lp81"]
 
+proc comp(c: uint8): float64 {.inline.} = float64((int(c) shl 8) or int(c)) # weird conversion; but that's how color works in Go implementation
 # Luminosity func from chroma
-proc lum(C: Color): float32 {.inline.} =
-  0.299 * C.r + 0.587 * C.g + 0.114 * C.b
+proc lum(pixel: ColorRGBX): float64 {.inline.} =
+  (0.299 * comp(pixel.r) + 0.587 * comp(pixel.g) + 0.114 * comp(pixel.b)) / 256.0
 
-proc grayscale*(image: Image): Image8 =
+proc grayscale*(image: pixie.Image): Image8 =
   result = Image8(width: image.width, height: image.height, data: newSeq[uint8](image.width * image.height))
   for i, pixel in image.data:
-    result.data[i] = uint8(max(0.0, min(1.0, lum(pixel.color))) * 255.0)
+    result.data[i] = uint8(clamp(lum(pixel), 0.0..255.0))
 
 proc readGrayscaleImage*(filePath: string): Image8 =
   readImage(filePath).grayscale
@@ -132,19 +133,28 @@ proc readLandmarkCascadeDir*(dir: string = "cascade/lps"): Table[string, Landmar
     if kind == pcFile:
       result[extractFilename(path)] = readLandmarkCascade(path)
 
+{.push checks: off.} # Those functions take most of CPU time, so we disable range/overflow checks temporarily
 proc classifyRegion(fc: FaceCascade, x, y, s, treeSize: int, data: seq[uint8], w: int): float32 =
   ## Constructs the classification function based on the parsed binary data
   var root: int
   let x = x * 256
   let y = y * 256
+  var offs: int
   if fc.treeNum <= 0:
     return 0.0
   for i in 0..<fc.treeNum:
     var idx = 1
     for j in 0..<fc.treeDepth:
-      let x1 = ((y + int(fc.codes[root + 4 * idx + 0]) * s) shr 8) * w + ((x + int(fc.codes[root + 4 * idx + 1]) * s) shr 8)
-      let x2 = ((y + int(fc.codes[root + 4 * idx + 2]) * s) shr 8) * w + ((x + int(fc.codes[root + 4 * idx + 3]) * s) shr 8)
-      idx = (idx shl 1) or int(data[x1] <= data[x2])
+      offs = root + (idx shl 2)
+      let i1 = 
+        ((y + int(fc.codes[offs + 0]) * s) shr 8) * w + 
+        ((x + int(fc.codes[offs + 1]) * s) shr 8)
+      let i2 =
+        ((y + int(fc.codes[offs + 2]) * s) shr 8) * w + 
+        ((x + int(fc.codes[offs + 3]) * s) shr 8)
+      #print i, j, i1, i2
+      #print data[i1], data[i2]
+      idx = (idx shl 1) or int(data[i1] <= data[i2])
     result += fc.preds[treeSize * (int(i) - 1) + idx]
     if result <= fc.thresholds[i]:
       return -1.0
@@ -234,36 +244,7 @@ proc classifyRotatedRegion(lc: LandmarkCascade, x, y, s: float32, treeSize: int,
     y += dy * s
     s *= lc.scales
   return (x, y, s)
-
-proc detect*(fc: FaceCascade, cp: FaceParams, angle: float64 = 0.0): seq[Face] =
-  ## Analyze the grayscale converted image pixel data and run the classification function over the detection window.
-  ## It will return a slice containing the detection row, column, it's center and the detection score (in case this is greater than 0.0).
-  var data = cp.image.data
-  let treeSize = 1 shl fc.treeDepth
-  var scale = cp.minSize
-  var q: float32
-
-  # Run the classification function over the detection window
-  # and check if the false positive rate is above a certain value.
-  while scale <= cp.maxSize:
-    let step = int(max(cp.shiftFactor * float64(scale), 1.0))
-    let offset = scale shr 1 + 1
-
-    for y in countup(offset, cp.image.height - offset, step):
-      for x in countup(offset, cp.image.width - offset, step):
-        if angle > 0.0:
-          q = fc.classifyRotatedRegion(x, y, scale, treeSize, min(angle, 1.0), data, cp.image.height, cp.image.width)
-        else:
-          q = fc.classifyRegion(x, y, scale, treeSize, data, cp.image.width)
-        
-        if q > 0.0:
-          result.add(Face(x: float32(x), y: float32(y), scale: float32(scale), score: q))
-
-    # We need to avoid running into an infinite loop because of float to int conversion
-    # in cases when scaleFactor == 1.1 and minSize == 9 as example.
-    # When the scale is 9, the factor would come up with 9.9, which again becomes 9 because of the int() conversion.
-    # This approach gives the same speed without having an impact on the detection score.
-    scale = int(float64(scale) + max(2.0, float64(scale) * cp.scaleFactor - float64(scale)))
+{.pop.}
 
 proc cluster*(faces: seq[Face], iouThreshold: float64): seq[Face] =
   ## Returns the intersection over union of multiple clusters.
@@ -301,14 +282,36 @@ proc cluster*(faces: seq[Face], iouThreshold: float64): seq[Face] =
 
 proc detect*(fc: FaceCascade, image: Image8, minSize: int = 100, maxSize: int = 600, shiftFactor: float64 = 0.15, scaleFactor: float64 = 1.1, angle = 0.0, iouThreshold = 0.0): seq[Face] =
   ## Analyze the grayscale converted image pixel data and run the classification function over the detection window.
-  let faces = fc.detect(FaceParams(
-    image: image,
-    minSize: minSize,
-    maxSize: maxSize,
-    shiftFactor: shiftFactor,
-    scaleFactor: scaleFactor,
-  ), angle)
-  return faces.cluster(iouThreshold)
+  ## It will return a slice containing the detection row, column, it's center and the detection score (in case this is greater than 0.0).
+  var data = image.data
+  let treeSize = 1 shl fc.treeDepth
+  var scale = minSize
+  var q: float32
+
+  # Run the classification function over the detection window
+  # and check if the false positive rate is above a certain value.
+  while scale <= maxSize:
+    let step = int(max(shiftFactor * float64(scale), 1.0))
+    let offset = scale shr 1 + 1
+
+    for y in countup(offset, image.height - offset, step):
+      for x in countup(offset, image.width - offset, step):
+        if angle > 0.0:
+          q = fc.classifyRotatedRegion(x, y, scale, treeSize, min(angle, 1.0), data, image.height, image.width)
+        else:
+          q = fc.classifyRegion(x, y, scale, treeSize, data, image.width)
+        
+        if q > 0.0:
+          result.add(Face(x: float32(x), y: float32(y), scale: float32(scale), score: q))
+
+    # We need to avoid running into an infinite loop because of float to int conversion
+    # in cases when scaleFactor == 1.1 and minSize == 9 as example.
+    # When the scale is 9, the factor would come up with 9.9, which again becomes 9 because of the int() conversion.
+    # This approach gives the same speed without having an impact on the detection score.
+    scale = int(float64(scale) + max(2.0, float64(scale) * scaleFactor - float64(scale)))
+
+  if iouThreshold >= 0.0:
+    result = result.cluster(iouThreshold)
 
 proc detect*(lc: LandmarkCascade, image: Image8, x, y, scale: float32, perturbs: int, angle: float64 = 0.0, flipV: bool = false): Landmark =
   ## Runs the pupil/landmark localization function.
@@ -327,14 +330,13 @@ proc detect*(lc: LandmarkCascade, image: Image8, x, y, scale: float32, perturbs:
     ys[i] = res.y
     ss[i] = res.s
   # Sorting the perturbations in ascending order
-  # TODO: this looks wrong (why is every array sorted independently?)
   sort(xs)
   sort(ys)
   sort(ss)
   let mid = int(round(float(perturbs) / 2.0))
   return Landmark(x: xs[mid], y: ys[mid], scale: ss[mid])
 
-proc getLandmarkPoint*(lc: LandmarkCascade, leftEye, rightEye: Landmark, image: Image8, perturbs: int, flipV: bool): Landmark =
+proc detect*(lc: LandmarkCascade, leftEye, rightEye: Landmark, image: Image8, perturbs: int, flipV: bool): Landmark =
   ## Retrieves the facial landmark point based on the pupil localization results.
   let dx = leftEye.x - rightEye.x
   let dy = leftEye.y - rightEye.y
@@ -422,13 +424,7 @@ proc detect*(fd: FaceDetector, image: Image8,
   let iouThreshold = float64(overlapThreshold) / 100
 
   # Detect
-  var faces = fd.faceCascade.detect(FaceParams(
-    image: image,
-    minSize: minSize,
-    maxSize: maxSize,
-    shiftFactor: shiftFactor,
-    scaleFactor: scaleFactor,
-  ), angle).cluster(iouThreshold)
+  var faces = fd.faceCascade.detect(image, minSize, maxSize, shiftFactor, scaleFactor, angle, iouThreshold)
 
   # Faces
   # Sort results by size
@@ -466,7 +462,7 @@ proc detect*(fd: FaceDetector, image: Image8,
             continue
           let flpc = fd.landmarkCascades[name]
           for flip in false..true:
-            let flp = flpc.getLandmarkPoint(leftEye, rightEye, image, perturbs, flip)
+            let flp = flpc.detect(leftEye, rightEye, image, perturbs, flip)
             if flp.x > 0 and flp.y > 0:
               person.landmarks[name & (if flip: "" else: "_v")] = flp
 
@@ -475,13 +471,13 @@ proc detect*(fd: FaceDetector, image: Image8,
         if name notin fd.landmarkCascades:
           continue
         let flpc = fd.landmarkCascades[name]
-        let flp = flpc.getLandmarkPoint(leftEye, rightEye, image, perturbs, false)
+        let flp = flpc.detect(leftEye, rightEye, image, perturbs, false)
         if flp.x > 0 and flp.y > 0:
           person.landmarks[name] = flp
 
       if "lp84" in fd.landmarkCascades:
         let flpc = fd.landmarkCascades["lp84"]
-        let flp = flpc.getLandmarkPoint(leftEye, rightEye, image, perturbs, true)
+        let flp = flpc.detect(leftEye, rightEye, image, perturbs, true)
         if flp.x > 0 and flp.y > 0:
           person.landmarks["lp84_v"] = flp
     
