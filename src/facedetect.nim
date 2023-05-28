@@ -28,18 +28,6 @@ type
     scales: float32
     stages: uint32
 
-  FaceParams* = object
-    ## FaceParams contains the basic parameters to run the analyzer function over the defined image.
-    ## minSize: represents the minimum size of the face.
-    ## maxSize: represents the maximum size of the face.
-    ## shiftFactor: determines to what percentage to move the detection window over its size.
-    ## scaleFactor: defines in percentage the resize value of the detection window when moving to a higher scale.
-    image*: Image8
-    minSize*: int
-    maxSize*: int
-    shiftFactor*: float64
-    scaleFactor*: float64
-
   Face* = object
     ## Face contains the detection results composed of
     ## the row, column, scale factor and the detection score.
@@ -382,12 +370,12 @@ proc qualityThresholdFunc*(scale: float32): float32 =
   elif scale < 110:
     result += 2.0
 
-proc initFaceDetector*(): FaceDetector =
-  result.faceCascade = readFaceCascade()
-  result.eyesCascade = readLandmarkCascade()
-  result.landmarkCascades = readLandmarkCascadeDir()
+proc initFaceDetector*(cascadeDir: string = "cascade"): FaceDetector =
+  result.faceCascade = readFaceCascade(joinPath(cascadeDir, "facefinder"))
+  result.eyesCascade = readLandmarkCascade(joinPath(cascadeDir, "puploc"))
+  result.landmarkCascades = readLandmarkCascadeDir(joinPath(cascadeDir, "lps"))
 
-proc overlap*(face1, face2: Face): float64 =
+proc overlap(face1, face2: Face): float64 =
   let s1 = face1.scale / 2
   let s2 = face2.scale / 2
   let x = max(0, min(face1.x + s1, face2.x + s2) - max(face1.x - s1, face2.x - s2))
