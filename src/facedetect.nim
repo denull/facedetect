@@ -82,7 +82,7 @@ proc grayscale*(image: pixie.Image): Image8 =
 proc readGrayscaleImage*(filePath: string): Image8 =
   readImage(filePath).grayscale
 
-proc readFaceCascade*(fs: FileStream): FaceCascade =
+proc readFaceCascade*(fs: Stream): FaceCascade =
   ## Unpack the binary face classification file.
   fs.setPosition(8)
   result.treeDepth = fs.readUint32le()
@@ -98,25 +98,6 @@ proc readFaceCascade*(fs: FileStream): FaceCascade =
     for i in 0..<treeSize:
       result.preds.add(fs.readFloat32le())
     result.thresholds.add(fs.readFloat32le())
-
-proc readStaticFaceCascade*(): FaceCascade =
-  let fs = newStringStream(facefinderBlob)
-  ## Unpack the binary face classification file.
-  fs.setPosition(8)
-  result.treeDepth = fs.readUint32()
-  echo result.treeDepth
-  result.treeNum = fs.readUint32()
-  result.thresholds = newSeqOfCap[float32](int(result.treeNum))
-  result.codes = newSeqOfCap[int8](119808)
-  result.preds = newSeqOfCap[float32](29952)
-  let treeSize = 1 shl result.treeDepth
-  for t in 0..<result.treeNum:
-    let i = result.codes.len + 4
-    result.codes.setLen(result.codes.len + treeSize * 4)
-    discard fs.readData(addr result.codes[i], treeSize * 4 - 4)
-    for i in 0..<treeSize:
-      result.preds.add(fs.readFloat32())
-    result.thresholds.add(fs.readFloat32())
 
 proc readFaceCascade*(filename: string = "cascade/facefinder"): FaceCascade =
   ## Unpack the binary face classification file.
@@ -144,24 +125,6 @@ proc readLandmarkCascade*(filename: string = "cascade/puploc"): LandmarkCascade 
   ## Unpacks the pupil localization cascade file
   readLandmarkCascade(openFileStream(filename))
 
-proc readStaticLandmarkCascade*(fs: StringStream): LandmarkCascade =
-  ## Unpacks the pupil localization cascade file
-  result.codes = newSeqOfCap[int8](409200)
-  result.preds = newSeqOfCap[float32](204800)
-  result.stages = fs.readUint32le()
-  result.scales = fs.readFloat32le()
-  result.treeNum = fs.readUint32le()
-  result.treeDepth = fs.readUint32le()
-  for s in 0..<result.stages:
-    for t in 0..<result.treeNum:
-      let size = 1 shl result.treeDepth
-      let idx = result.codes.len
-      result.codes.setLen(idx + size * 4 - 4)
-      discard fs.readData(addr result.codes[idx], size * 4 - 4)
-      for i in 0..<size:
-        for l in 0..<2:
-          result.preds.add(fs.readFloat32le())
-
 proc readLandmarkCascadeDir*(dir: string = "cascade/lps"): Table[string, LandmarkCascade] =
   ## Reads the facial landmark points cascade files from the provided directory.
   for kind, path in walkDir(dir):
@@ -169,15 +132,15 @@ proc readLandmarkCascadeDir*(dir: string = "cascade/lps"): Table[string, Landmar
       result[extractFilename(path)] = readLandmarkCascade(path)
 
 proc staticReadLandmarkCascadeDir(): Table[string, LandmarkCascade] =
-  result["lp46"] = readStaticLandmarkCascade(newStringStream(eyeCascadeBlobs["lp46"]))
-  result["lp44"] = readStaticLandmarkCascade(newStringStream(eyeCascadeBlobs["lp44"]))
-  result["lp42"] = readStaticLandmarkCascade(newStringStream(eyeCascadeBlobs["lp42"]))
-  result["lp38"] = readStaticLandmarkCascade(newStringStream(eyeCascadeBlobs["lp38"]))
-  result["lp312"] = readStaticLandmarkCascade(newStringStream(eyeCascadeBlobs["lp312"]))
-  result["lp93"] = readStaticLandmarkCascade(newStringStream(mouthCascadeBlobs["lp93"]))
-  result["lp84"] = readStaticLandmarkCascade(newStringStream(mouthCascadeBlobs["lp84"]))
-  result["lp82"] = readStaticLandmarkCascade(newStringStream(mouthCascadeBlobs["lp82"]))
-  result["lp81"] = readStaticLandmarkCascade(newStringStream(mouthCascadeBlobs["lp81"]))
+  result["lp46"] = readLandmarkCascade(newStringStream(eyeCascadeBlobs["lp46"]))
+  result["lp44"] = readLandmarkCascade(newStringStream(eyeCascadeBlobs["lp44"]))
+  result["lp42"] = readLandmarkCascade(newStringStream(eyeCascadeBlobs["lp42"]))
+  result["lp38"] = readLandmarkCascade(newStringStream(eyeCascadeBlobs["lp38"]))
+  result["lp312"] = readLandmarkCascade(newStringStream(eyeCascadeBlobs["lp312"]))
+  result["lp93"] = readLandmarkCascade(newStringStream(mouthCascadeBlobs["lp93"]))
+  result["lp84"] = readLandmarkCascade(newStringStream(mouthCascadeBlobs["lp84"]))
+  result["lp82"] = readLandmarkCascade(newStringStream(mouthCascadeBlobs["lp82"]))
+  result["lp81"] = readLandmarkCascade(newStringStream(mouthCascadeBlobs["lp81"]))
 
 {.push checks: off.} # Those functions take most of CPU time, so we disable range/overflow checks temporarily
 proc classifyRegion(fc: FaceCascade, x, y, s, treeSize: int, data: seq[uint8], w: int): float32 =
@@ -432,8 +395,8 @@ proc initFaceDetector*(cascadeDir: string = "cascade"): FaceDetector =
   result.landmarkCascades = readLandmarkCascadeDir(joinPath(cascadeDir, "lps"))
 
 proc initStaticFaceDetector*(): FaceDetector =
-  result.faceCascade = readStaticFaceCascade()
-  result.eyesCascade = readStaticLandmarkCascade(newStringStream(puplocBlob))
+  result.faceCascade = readFaceCascade(newStringStream(facefinderBlob))
+  result.eyesCascade = readLandmarkCascade(newStringStream(puplocBlob))
   result.landmarkCascades = staticReadLandmarkCascadeDir()
 
 proc overlap(face1, face2: Face): float64 =
