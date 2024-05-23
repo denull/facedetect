@@ -54,15 +54,13 @@ type
     landmarks*: Table[string, Landmark]
 
   # Cascades* = tuple[facefinder: string, puploc: string]
+  Cascades* = object
+    facefinder*: string
+    puploc*: string
+    lps*: Table[string, string]
 
 const qCosTable = [256, 251, 236, 212, 181, 142, 97, 49, 0, -49, -97, -142, -181, -212, -236, -251, -256, -251, -236, -212, -181, -142, -97, -49, 0, 49, 97, 142, 181, 212, 236, 251, 256]
 const qSinTable = [0, 49, 97, 142, 181, 212, 236, 251, 256, 251, 236, 212, 181, 142, 97, 49, 0, -49, -97, -142, -181, -212, -236, -251, -256, -251, -236, -212, -181, -142, -97, -49, 0]
-
-# const cascades: Cascades = (facefinder: staticRead("../cascade/facefinder"), puploc: staticRead("../cascade/puploc"))
-const facefinderBlob = staticRead("../cascade/facefinder")
-const puplocBlob = staticRead("../cascade/puploc")
-const eyeCascadeBlobs = {"lp46": staticRead("../cascade/lps/lp46"), "lp44": staticRead("../cascade/lps/lp44"), "lp42": staticRead("../cascade/lps/lp42"), "lp38": staticRead("../cascade/lps/lp38"), "lp312": staticRead("../cascade/lps/lp312")}.toTable
-const mouthCascadeBlobs = {"lp93": staticRead("../cascade/lps/lp93"), "lp84": staticRead("../cascade/lps/lp84"), "lp82": staticRead("../cascade/lps/lp82"), "lp81": staticRead("../cascade/lps/lp81")}.toTable
 
 const eyeCascades* = ["lp46", "lp44", "lp42", "lp38", "lp312"]
 const mouthCascades* = ["lp93", "lp84", "lp82", "lp81"]
@@ -131,16 +129,9 @@ proc readLandmarkCascadeDir*(dir: string = "cascade/lps"): Table[string, Landmar
     if kind == pcFile:
       result[extractFilename(path)] = readLandmarkCascade(path)
 
-proc staticReadLandmarkCascadeDir(): Table[string, LandmarkCascade] =
-  result["lp46"] = readLandmarkCascade(newStringStream(eyeCascadeBlobs["lp46"]))
-  result["lp44"] = readLandmarkCascade(newStringStream(eyeCascadeBlobs["lp44"]))
-  result["lp42"] = readLandmarkCascade(newStringStream(eyeCascadeBlobs["lp42"]))
-  result["lp38"] = readLandmarkCascade(newStringStream(eyeCascadeBlobs["lp38"]))
-  result["lp312"] = readLandmarkCascade(newStringStream(eyeCascadeBlobs["lp312"]))
-  result["lp93"] = readLandmarkCascade(newStringStream(mouthCascadeBlobs["lp93"]))
-  result["lp84"] = readLandmarkCascade(newStringStream(mouthCascadeBlobs["lp84"]))
-  result["lp82"] = readLandmarkCascade(newStringStream(mouthCascadeBlobs["lp82"]))
-  result["lp81"] = readLandmarkCascade(newStringStream(mouthCascadeBlobs["lp81"]))
+proc readLandmarkCascadeDir(lps: Table[string, string]): Table[string, LandmarkCascade] =
+  for name, blob in lps:
+    result[name] = readLandmarkCascade(newStringStream(blob))
 
 {.push checks: off.} # Those functions take most of CPU time, so we disable range/overflow checks temporarily
 proc classifyRegion(fc: FaceCascade, x, y, s, treeSize: int, data: seq[uint8], w: int): float32 =
@@ -394,10 +385,10 @@ proc initFaceDetector*(cascadeDir: string = "cascade"): FaceDetector =
   result.eyesCascade = readLandmarkCascade(joinPath(cascadeDir, "puploc"))
   result.landmarkCascades = readLandmarkCascadeDir(joinPath(cascadeDir, "lps"))
 
-proc initStaticFaceDetector*(): FaceDetector =
-  result.faceCascade = readFaceCascade(newStringStream(facefinderBlob))
-  result.eyesCascade = readLandmarkCascade(newStringStream(puplocBlob))
-  result.landmarkCascades = staticReadLandmarkCascadeDir()
+proc initFaceDetector*(cascades: Cascades): FaceDetector =
+  result.faceCascade = readFaceCascade(newStringStream(cascades.facefinder))
+  result.eyesCascade = readLandmarkCascade(newStringStream(cascades.puploc))
+  result.landmarkCascades = readLandmarkCascadeDir(cascades.lps)
 
 proc overlap(face1, face2: Face): float64 =
   let s1 = face1.scale / 2
