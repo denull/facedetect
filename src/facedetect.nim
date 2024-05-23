@@ -53,7 +53,6 @@ type
     eyes*: array[0..1, ref Landmark]
     landmarks*: Table[string, Landmark]
 
-  # Cascades* = tuple[facefinder: string, puploc: string]
   Cascades* = object
     facefinder*: string
     puploc*: string
