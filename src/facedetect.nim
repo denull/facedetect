@@ -53,8 +53,16 @@ type
     eyes*: array[0..1, ref Landmark]
     landmarks*: Table[string, Landmark]
 
+  # Cascades* = tuple[facefinder: string, puploc: string]
+
 const qCosTable = [256, 251, 236, 212, 181, 142, 97, 49, 0, -49, -97, -142, -181, -212, -236, -251, -256, -251, -236, -212, -181, -142, -97, -49, 0, 49, 97, 142, 181, 212, 236, 251, 256]
 const qSinTable = [0, 49, 97, 142, 181, 212, 236, 251, 256, 251, 236, 212, 181, 142, 97, 49, 0, -49, -97, -142, -181, -212, -236, -251, -256, -251, -236, -212, -181, -142, -97, -49, 0]
+
+# const cascades: Cascades = (facefinder: staticRead("../cascade/facefinder"), puploc: staticRead("../cascade/puploc"))
+const facefinderBlob = staticRead("../cascade/facefinder")
+const puplocBlob = staticRead("../cascade/puploc")
+const eyeCascadeBlobs = {"lp46": staticRead("../cascade/lps/lp46"), "lp44": staticRead("../cascade/lps/lp44"), "lp42": staticRead("../cascade/lps/lp42"), "lp38": staticRead("../cascade/lps/lp38"), "lp312": staticRead("../cascade/lps/lp312")}.toTable
+const mouthCascadeBlobs = {"lp93": staticRead("../cascade/lps/lp93"), "lp84": staticRead("../cascade/lps/lp84"), "lp82": staticRead("../cascade/lps/lp82"), "lp81": staticRead("../cascade/lps/lp81")}.toTable
 
 const eyeCascades* = ["lp46", "lp44", "lp42", "lp38", "lp312"]
 const mouthCascades* = ["lp93", "lp84", "lp82", "lp81"]
@@ -91,11 +99,30 @@ proc readFaceCascade*(fs: FileStream): FaceCascade =
       result.preds.add(fs.readFloat32le())
     result.thresholds.add(fs.readFloat32le())
 
+proc readStaticFaceCascade*(): FaceCascade =
+  let fs = newStringStream(facefinderBlob)
+  ## Unpack the binary face classification file.
+  fs.setPosition(8)
+  result.treeDepth = fs.readUint32()
+  echo result.treeDepth
+  result.treeNum = fs.readUint32()
+  result.thresholds = newSeqOfCap[float32](int(result.treeNum))
+  result.codes = newSeqOfCap[int8](119808)
+  result.preds = newSeqOfCap[float32](29952)
+  let treeSize = 1 shl result.treeDepth
+  for t in 0..<result.treeNum:
+    let i = result.codes.len + 4
+    result.codes.setLen(result.codes.len + treeSize * 4)
+    discard fs.readData(addr result.codes[i], treeSize * 4 - 4)
+    for i in 0..<treeSize:
+      result.preds.add(fs.readFloat32())
+    result.thresholds.add(fs.readFloat32())
+
 proc readFaceCascade*(filename: string = "cascade/facefinder"): FaceCascade =
   ## Unpack the binary face classification file.
   readFaceCascade(openFileStream(filename))
 
-proc readLandmarkCascade*(fs: FileStream): LandmarkCascade =
+proc readLandmarkCascade*(fs: Stream): LandmarkCascade =
   ## Unpacks the pupil localization cascade file
   result.codes = newSeqOfCap[int8](409200)
   result.preds = newSeqOfCap[float32](204800)
@@ -116,12 +143,41 @@ proc readLandmarkCascade*(fs: FileStream): LandmarkCascade =
 proc readLandmarkCascade*(filename: string = "cascade/puploc"): LandmarkCascade =
   ## Unpacks the pupil localization cascade file
   readLandmarkCascade(openFileStream(filename))
-  
+
+proc readStaticLandmarkCascade*(fs: StringStream): LandmarkCascade =
+  ## Unpacks the pupil localization cascade file
+  result.codes = newSeqOfCap[int8](409200)
+  result.preds = newSeqOfCap[float32](204800)
+  result.stages = fs.readUint32le()
+  result.scales = fs.readFloat32le()
+  result.treeNum = fs.readUint32le()
+  result.treeDepth = fs.readUint32le()
+  for s in 0..<result.stages:
+    for t in 0..<result.treeNum:
+      let size = 1 shl result.treeDepth
+      let idx = result.codes.len
+      result.codes.setLen(idx + size * 4 - 4)
+      discard fs.readData(addr result.codes[idx], size * 4 - 4)
+      for i in 0..<size:
+        for l in 0..<2:
+          result.preds.add(fs.readFloat32le())
+
 proc readLandmarkCascadeDir*(dir: string = "cascade/lps"): Table[string, LandmarkCascade] =
   ## Reads the facial landmark points cascade files from the provided directory.
   for kind, path in walkDir(dir):
     if kind == pcFile:
       result[extractFilename(path)] = readLandmarkCascade(path)
+
+proc staticReadLandmarkCascadeDir(): Table[string, LandmarkCascade] =
+  result["lp46"] = readStaticLandmarkCascade(newStringStream(eyeCascadeBlobs["lp46"]))
+  result["lp44"] = readStaticLandmarkCascade(newStringStream(eyeCascadeBlobs["lp44"]))
+  result["lp42"] = readStaticLandmarkCascade(newStringStream(eyeCascadeBlobs["lp42"]))
+  result["lp38"] = readStaticLandmarkCascade(newStringStream(eyeCascadeBlobs["lp38"]))
+  result["lp312"] = readStaticLandmarkCascade(newStringStream(eyeCascadeBlobs["lp312"]))
+  result["lp93"] = readStaticLandmarkCascade(newStringStream(mouthCascadeBlobs["lp93"]))
+  result["lp84"] = readStaticLandmarkCascade(newStringStream(mouthCascadeBlobs["lp84"]))
+  result["lp82"] = readStaticLandmarkCascade(newStringStream(mouthCascadeBlobs["lp82"]))
+  result["lp81"] = readStaticLandmarkCascade(newStringStream(mouthCascadeBlobs["lp81"]))
 
 {.push checks: off.} # Those functions take most of CPU time, so we disable range/overflow checks temporarily
 proc classifyRegion(fc: FaceCascade, x, y, s, treeSize: int, data: seq[uint8], w: int): float32 =
@@ -136,11 +192,11 @@ proc classifyRegion(fc: FaceCascade, x, y, s, treeSize: int, data: seq[uint8], w
     var idx = 1
     for j in 0..<fc.treeDepth:
       offs = root + (idx shl 2)
-      let i1 = 
-        ((y + int(fc.codes[offs + 0]) * s) shr 8) * w + 
+      let i1 =
+        ((y + int(fc.codes[offs + 0]) * s) shr 8) * w +
         ((x + int(fc.codes[offs + 1]) * s) shr 8)
       let i2 =
-        ((y + int(fc.codes[offs + 2]) * s) shr 8) * w + 
+        ((y + int(fc.codes[offs + 2]) * s) shr 8) * w +
         ((x + int(fc.codes[offs + 3]) * s) shr 8)
       #print i, j, i1, i2
       #print data[i1], data[i2]
@@ -242,7 +298,7 @@ proc cluster*(faces: seq[Face], iouThreshold: float64): seq[Face] =
   var faces = faces
   sort(faces) do (f1, f2: Face) -> int:
     cmp(f1.score, f2.score)
-  
+
   var assignments = newSeq[bool](faces.len)
   for i, face1 in faces:
     # Compare the intersection over union only for two different clusters.
@@ -290,7 +346,7 @@ proc detect*(fc: FaceCascade, image: Image8, minSize: int = 100, maxSize: int = 
           q = fc.classifyRotatedRegion(x, y, scale, treeSize, min(angle, 1.0), data, image.height, image.width)
         else:
           q = fc.classifyRegion(x, y, scale, treeSize, data, image.width)
-        
+
         if q > 0.0:
           result.add(Face(x: float32(x), y: float32(y), scale: float32(scale), score: q))
 
@@ -374,6 +430,11 @@ proc initFaceDetector*(cascadeDir: string = "cascade"): FaceDetector =
   result.faceCascade = readFaceCascade(joinPath(cascadeDir, "facefinder"))
   result.eyesCascade = readLandmarkCascade(joinPath(cascadeDir, "puploc"))
   result.landmarkCascades = readLandmarkCascadeDir(joinPath(cascadeDir, "lps"))
+
+proc initStaticFaceDetector*(): FaceDetector =
+  result.faceCascade = readStaticFaceCascade()
+  result.eyesCascade = readStaticLandmarkCascade(newStringStream(puplocBlob))
+  result.landmarkCascades = staticReadLandmarkCascadeDir()
 
 proc overlap(face1, face2: Face): float64 =
   let s1 = face1.scale / 2
@@ -469,6 +530,6 @@ proc detect*(fd: FaceDetector, image: Image8,
         let flp = flpc.detect(leftEye, rightEye, image, perturbs, true)
         if flp.x > 0 and flp.y > 0:
           person.landmarks["lp84_v"] = flp
-    
+
     if not result.contains(person, overlapThreshold):
       result.add(person)
