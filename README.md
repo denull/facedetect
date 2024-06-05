@@ -14,7 +14,27 @@ nimble install facedetect
 
 ## Cascade files
 
-This library uses the same cascade file format used by Pigo. Those files available at `cascade` directory, copy it to your app folder so they can be loaded at runtime. Including them statically will be supported later.
+This library uses the same cascade file format used by Pigo. Those files available at `cascade` directory, copy it to your app folder so they can be loaded at runtime.
+
+### Including cascade file statically
+
+
+Create a constant Cascades object, then call the `initFaceDetector`,  that expects a cascades object. The facefinder, the puploc file and the lps directory paths need to be provided.
+
+```nim
+const cascades = block:
+  var result: Cascades
+  result.facefinder = staticRead("cascade/facefinder")
+  result.puploc = staticRead("cascade/puploc")
+  result.lps = initTable[string, string]()
+  for i in eyeCascades:
+    result.lps[i] = staticRead("cascade/lps/" & i)
+  for i in mouthCascades:
+    result.lps[i] = staticRead("cascade/lps/" & i)
+  result
+
+let fd = initFaceDetector(cascades)
+```
 
 ## Usage
 

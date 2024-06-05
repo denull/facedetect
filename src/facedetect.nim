@@ -53,6 +53,11 @@ type
     eyes*: array[0..1, ref Landmark]
     landmarks*: Table[string, Landmark]
 
+  Cascades* = object
+    facefinder*: string
+    puploc*: string
+    lps*: Table[string, string]
+
 const qCosTable = [256, 251, 236, 212, 181, 142, 97, 49, 0, -49, -97, -142, -181, -212, -236, -251, -256, -251, -236, -212, -181, -142, -97, -49, 0, 49, 97, 142, 181, 212, 236, 251, 256]
 const qSinTable = [0, 49, 97, 142, 181, 212, 236, 251, 256, 251, 236, 212, 181, 142, 97, 49, 0, -49, -97, -142, -181, -212, -236, -251, -256, -251, -236, -212, -181, -142, -97, -49, 0]
 
@@ -74,7 +79,7 @@ proc grayscale*(image: pixie.Image): Image8 =
 proc readGrayscaleImage*(filePath: string): Image8 =
   readImage(filePath).grayscale
 
-proc readFaceCascade*(fs: FileStream): FaceCascade =
+proc readFaceCascade*(fs: Stream): FaceCascade =
   ## Unpack the binary face classification file.
   fs.setPosition(8)
   result.treeDepth = fs.readUint32le()
@@ -95,7 +100,7 @@ proc readFaceCascade*(filename: string = "cascade/facefinder"): FaceCascade =
   ## Unpack the binary face classification file.
   readFaceCascade(openFileStream(filename))
 
-proc readLandmarkCascade*(fs: FileStream): LandmarkCascade =
+proc readLandmarkCascade*(fs: Stream): LandmarkCascade =
   ## Unpacks the pupil localization cascade file
   result.codes = newSeqOfCap[int8](409200)
   result.preds = newSeqOfCap[float32](204800)
@@ -116,12 +121,16 @@ proc readLandmarkCascade*(fs: FileStream): LandmarkCascade =
 proc readLandmarkCascade*(filename: string = "cascade/puploc"): LandmarkCascade =
   ## Unpacks the pupil localization cascade file
   readLandmarkCascade(openFileStream(filename))
-  
+
 proc readLandmarkCascadeDir*(dir: string = "cascade/lps"): Table[string, LandmarkCascade] =
   ## Reads the facial landmark points cascade files from the provided directory.
   for kind, path in walkDir(dir):
     if kind == pcFile:
       result[extractFilename(path)] = readLandmarkCascade(path)
+
+proc readLandmarkCascadeDir(lps: Table[string, string]): Table[string, LandmarkCascade] =
+  for name, blob in lps:
+    result[name] = readLandmarkCascade(newStringStream(blob))
 
 {.push checks: off.} # Those functions take most of CPU time, so we disable range/overflow checks temporarily
 proc classifyRegion(fc: FaceCascade, x, y, s, treeSize: int, data: seq[uint8], w: int): float32 =
@@ -136,11 +145,11 @@ proc classifyRegion(fc: FaceCascade, x, y, s, treeSize: int, data: seq[uint8], w
     var idx = 1
     for j in 0..<fc.treeDepth:
       offs = root + (idx shl 2)
-      let i1 = 
-        ((y + int(fc.codes[offs + 0]) * s) shr 8) * w + 
+      let i1 =
+        ((y + int(fc.codes[offs + 0]) * s) shr 8) * w +
         ((x + int(fc.codes[offs + 1]) * s) shr 8)
       let i2 =
-        ((y + int(fc.codes[offs + 2]) * s) shr 8) * w + 
+        ((y + int(fc.codes[offs + 2]) * s) shr 8) * w +
         ((x + int(fc.codes[offs + 3]) * s) shr 8)
       #print i, j, i1, i2
       #print data[i1], data[i2]
@@ -242,7 +251,7 @@ proc cluster*(faces: seq[Face], iouThreshold: float64): seq[Face] =
   var faces = faces
   sort(faces) do (f1, f2: Face) -> int:
     cmp(f1.score, f2.score)
-  
+
   var assignments = newSeq[bool](faces.len)
   for i, face1 in faces:
     # Compare the intersection over union only for two different clusters.
@@ -290,7 +299,7 @@ proc detect*(fc: FaceCascade, image: Image8, minSize: int = 100, maxSize: int = 
           q = fc.classifyRotatedRegion(x, y, scale, treeSize, min(angle, 1.0), data, image.height, image.width)
         else:
           q = fc.classifyRegion(x, y, scale, treeSize, data, image.width)
-        
+
         if q > 0.0:
           result.add(Face(x: float32(x), y: float32(y), scale: float32(scale), score: q))
 
@@ -374,6 +383,11 @@ proc initFaceDetector*(cascadeDir: string = "cascade"): FaceDetector =
   result.faceCascade = readFaceCascade(joinPath(cascadeDir, "facefinder"))
   result.eyesCascade = readLandmarkCascade(joinPath(cascadeDir, "puploc"))
   result.landmarkCascades = readLandmarkCascadeDir(joinPath(cascadeDir, "lps"))
+
+proc initFaceDetector*(cascades: Cascades): FaceDetector =
+  result.faceCascade = readFaceCascade(newStringStream(cascades.facefinder))
+  result.eyesCascade = readLandmarkCascade(newStringStream(cascades.puploc))
+  result.landmarkCascades = readLandmarkCascadeDir(cascades.lps)
 
 proc overlap(face1, face2: Face): float64 =
   let s1 = face1.scale / 2
@@ -469,6 +483,6 @@ proc detect*(fd: FaceDetector, image: Image8,
         let flp = flpc.detect(leftEye, rightEye, image, perturbs, true)
         if flp.x > 0 and flp.y > 0:
           person.landmarks["lp84_v"] = flp
-    
+
     if not result.contains(person, overlapThreshold):
       result.add(person)
